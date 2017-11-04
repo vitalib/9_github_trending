@@ -2,13 +2,13 @@ import requests
 import datetime
 
 
-def get_starting_date(days_delta):
-    starting_date = datetime.datetime.today()-datetime.timedelta(days_delta)
+def get_starting_date(period_days):
+    starting_date = datetime.datetime.today()-datetime.timedelta(period_days)
     return starting_date.strftime("%Y-%m-%d")
 
 
-def get_trending_repositories(top_size, days_delta):
-    starting_date = get_starting_date(days_delta)
+def get_trending_repositories(top_size, period_days):
+    starting_date = get_starting_date(period_days)
     url = 'https://api.github.com/search/repositories'
     parameters = {
                   'q': 'created:>{}'.format(starting_date),
@@ -16,15 +16,26 @@ def get_trending_repositories(top_size, days_delta):
                   'order': 'desc',
                   'per_page': '{}'.format(top_size),
                   }
-    request = requests.get(url, parameters)
-    return request.json()['items']
+    response = requests.get(url, parameters)
+    return response.json()['items']
 
 
 def get_open_issues_amount(repo_owner, repo_name):
-    url_pattern = "https://api.github.com/repos/{}/{}/issues"
-    url = url_pattern.format(repo_owner, repo_name)
-    open_issues = requests.get(url, {'state': 'open'}).json()
+    issue_url = "https://api.github.com/repos/{}/{}/issues".format(
+       repo_owner,
+       repo_name,
+    )
+    open_issues = requests.get(issue_url, {'state': 'open'}).json()
     return len(open_issues)
+
+
+def add_issues(repositories):
+    for repository in repositories:
+        repository['issues'] = get_open_issues_amount(
+            repository['owner']['login'],
+            repository['name'],
+        )
+    return repositories
 
 
 def print_repos_and_issues(repositories):
@@ -32,16 +43,13 @@ def print_repos_and_issues(repositories):
     for place, repo in enumerate(repositories, start=1):
         print(place, repo['html_url'])
         print('\t Stars = {}'.format(repo['watchers']))
-        issues_amount = get_open_issues_amount(
-            repo['owner']['login'],
-            repo['name'],
-        )
-        print('\t Open issues = {}'.format(issues_amount))
+        print('\t Open issues = {}'.format(repo['issues']))
 
 
 if __name__ == '__main__':
     trending_repositories = get_trending_repositories(
                                                 top_size=20,
-                                                days_delta=7,
+                                                period_days=7,
                                                       )
+    trending_repositories = add_issues(trending_repositories)
     print_repos_and_issues(trending_repositories)
